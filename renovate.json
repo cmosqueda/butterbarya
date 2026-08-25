@@ -1,0 +1,56 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": [
+    "config:recommended",
+    ":semanticCommitTypeAll(chore)"
+  ],
+  "description": "Renovate may only open or update PRs on Mondays, 6-10am ET.",
+  "timezone": "America/New_York",
+  "minimumReleaseAge": "3 days",
+  "schedule": ["* 6-10 * * 1"],
+  "semanticCommits": "enabled",
+  "ignorePaths": ["android/**", "ios/**"],
+  "packageRules": [
+    {
+      "matchPackageNames": ["@ionic/**"],
+      "minimumReleaseAge": "0 days",
+      "groupName": "ionic"
+    },
+    {
+      "matchPackageNames": ["react", "react-dom", "@types/react*"],
+      "groupName": "react"
+    },
+    {
+      "matchPackageNames": ["react-router", "react-router-dom"],
+      "groupName": "react-router",
+      "allowedVersions": "<7",
+      "description": "@ionic/react-router@9 requires react-router >=6.4.0 and <7"
+    },
+    {
+      "matchPackageNames": ["@capacitor/**"],
+      "groupName": "capacitor"
+    },
+    {
+      "matchPackageNames": ["vite", "@vitejs/**"],
+      "groupName": "vite"
+    },
+    {
+      "matchPackageNames": [
+        "@testing-library/**",
+        "vitest",
+        "cypress",
+        "jsdom"
+      ],
+      "groupName": "testing"
+    },
+    {
+      "matchPackageNames": ["eslint", "eslint-plugin-react", "typescript"],
+      "groupName": "dev-tools"
+    },
+    {
+      "matchPackageNames": ["eslint"],
+      "allowedVersions": "<10",
+      "description": "eslint-plugin-react@7 requires eslint <10. Raise this when eslint-plugin-react widens its eslint range."
+    }
+  ]
+}

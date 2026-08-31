@@ -1,5 +1,5 @@
 {
-  "name": "photo-gallery-capacitor-react",
+  "name": "butterbarya-payroll",
   "private": true,
   "version": "4.0.0",
   "type": "module",
@@ -15,6 +15,7 @@
     "lint": "eslint"
   },
   "dependencies": {
+    "@capacitor-community/sqlite": "^8.1.1",
     "@capacitor/android": "^8.5.0",
     "@capacitor/app": "^8.1.1",
     "@capacitor/camera": "^8.2.3",
@@ -29,10 +30,12 @@
     "@ionic/react": "^9.0.0",
     "@ionic/react-router": "^9.0.0",
     "ionicons": "^8.1.0",
+    "jeep-sqlite": "^2.8.0",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
     "react-router": "^6.30.4",
-    "react-router-dom": "^6.30.4"
+    "react-router-dom": "^6.30.4",
+    "sql.js": "1.11.0"
   },
   "devDependencies": {
     "@capacitor/cli": "^8.5.0",

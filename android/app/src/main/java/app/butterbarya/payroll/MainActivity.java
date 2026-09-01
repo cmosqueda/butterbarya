@@ -1,4 +1,4 @@
-package io.ionic.demo.pg.react;
+package app.butterbarya.payroll;
 
 import com.getcapacitor.BridgeActivity;
 

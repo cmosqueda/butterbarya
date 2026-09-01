@@ -9,6 +9,8 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
+    "android:sync": "npm run build && cap sync android",
+    "android:debug": "npm run android:sync && cd android && gradlew.bat assembleDebug",
     "preview": "vite preview",
     "test.e2e": "cypress run",
     "test.unit": "vitest",
@@ -38,6 +40,7 @@
     "sql.js": "1.11.0"
   },
   "devDependencies": {
+    "@capacitor/assets": "^3.0.5",
     "@capacitor/cli": "^8.5.0",
     "@testing-library/dom": "^10.0.0",
     "@testing-library/jest-dom": "^5.16.5",

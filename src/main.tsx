@@ -1,9 +1,10 @@
 import React from 'react';
 import { createRoot } from 'react-dom/client';
+import { Capacitor } from '@capacitor/core';
 import App from './App';
 import { defineCustomElements } from '@ionic/pwa-elements/loader';
 defineCustomElements(window);
-if ('serviceWorker' in navigator && import.meta.env.PROD) {
+if (!Capacitor.isNativePlatform() && 'serviceWorker' in navigator && import.meta.env.PROD) {
   window.addEventListener('load', () => navigator.serviceWorker.register('/sw.js'));
 }
 const container = document.getElementById('root');

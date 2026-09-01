@@ -1,7 +1,7 @@
 <?xml version='1.0' encoding='utf-8'?>
 <resources>
-    <string name="app_name">photo-gallery-capacitor-react</string>
-    <string name="title_activity_main">photo-gallery-capacitor-react</string>
-    <string name="package_name">io.ionic.demo.pg.react</string>
-    <string name="custom_url_scheme">io.ionic.demo.pg.react</string>
+    <string name="app_name">Butterbarya</string>
+    <string name="title_activity_main">Butterbarya</string>
+    <string name="package_name">app.butterbarya.payroll</string>
+    <string name="custom_url_scheme">app.butterbarya.payroll</string>
 </resources>

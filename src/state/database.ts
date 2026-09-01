@@ -56,7 +56,8 @@ const schema = `
 `;
 
 async function openDatabase() {
-  if (Capacitor.getPlatform() === 'web') {
+  const isNative = Capacitor.isNativePlatform();
+  if (!isNative) {
     defineJeepSqlite(window);
     if (!document.querySelector('jeep-sqlite')) {
       const element = document.createElement('jeep-sqlite');
@@ -67,17 +68,37 @@ async function openDatabase() {
     await sqlite.initWebStore();
   }
 
+  const encryptionMode = isNative ? await prepareNativeEncryption() : 'no-encryption';
+
   const consistent = await sqlite.checkConnectionsConsistency();
   const exists = (await sqlite.isConnection(DATABASE_NAME, false)).result;
   const db = consistent.result && exists
     ? await sqlite.retrieveConnection(DATABASE_NAME, false)
-    : await sqlite.createConnection(DATABASE_NAME, false, 'no-encryption', DATABASE_VERSION, false);
+    : await sqlite.createConnection(DATABASE_NAME, isNative, encryptionMode, DATABASE_VERSION, false);
   if (!(await db.isDBOpen()).result) await db.open();
   await db.execute(schema);
   await insertDefaultSettings(db);
   await migrateLegacyLocalStorage(db);
   await persistWebDatabase();
   return db;
+}
+
+async function prepareNativeEncryption(): Promise<'secret' | 'encryption'> {
+  const configured = (await sqlite.isInConfigEncryption()).result;
+  if (!configured) throw new Error('Native SQLite encryption is not enabled in capacitor.config.ts.');
+
+  const secretStored = (await sqlite.isSecretStored()).result;
+  if (!secretStored) {
+    const bytes = crypto.getRandomValues(new Uint8Array(32));
+    const passphrase = Array.from(bytes, (byte) => byte.toString(16).padStart(2, '0')).join('');
+    await sqlite.setEncryptionSecret(passphrase);
+  }
+
+  const databaseExists = (await sqlite.isDatabase(DATABASE_NAME)).result;
+  if (!databaseExists) return 'secret';
+
+  const databaseEncrypted = (await sqlite.isDatabaseEncrypted(DATABASE_NAME)).result;
+  return databaseEncrypted ? 'secret' : 'encryption';
 }
 
 export function getDatabase() {

@@ -1,4 +1,4 @@
-package com.getcapacitor.myapp;
+package app.butterbarya.payroll;
 
 import static org.junit.Assert.*;
 

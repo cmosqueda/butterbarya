@@ -1,16 +1,19 @@
 import { createContext, useContext, useEffect, useMemo, useState } from 'react';
-import { calculateAttendance, defaultSettings } from './payroll';
-import { insertAttendance, insertPayslip, loadPayrollStore, removeAttendance, removePayslip, saveSettings } from './database';
-import type { AttendanceStatus, PayrollStore, Payslip, Settings } from './types';
+import { calculateAttendance, defaultPayrollPeriod, defaultScheduleConfig, defaultSettings, defaultWeeklySchedule, scheduleDayForConfig } from './payroll';
+import { insertAttendance, insertPayrollPeriod, insertPayslip, loadPayrollStore, removeAttendance, removePayrollPeriod, removePayslip, saveSchedule, saveSettings, updateAttendanceCalculations, updatePayrollPeriod } from './database';
+import type { AttendancePunch, AttendanceStatus, PayrollPeriod, PayrollStore, Payslip, ScheduleConfig, Settings, WeeklyScheduleDay } from './types';
 
-const initialStore: PayrollStore = { settings: defaultSettings, attendance: [], payslips: [] };
+const initialStore: PayrollStore = { settings: defaultSettings, scheduleConfig: defaultScheduleConfig, weeklySchedule: defaultWeeklySchedule(defaultSettings), payrollPeriods: [], attendance: [], payslips: [] };
 
 interface PayrollContextValue extends PayrollStore {
-  addAttendance: (input: { date: string; timeIn: string; timeOut: string; status: AttendanceStatus; remarks: string }) => Promise<void>;
+  addAttendance: (input: { date: string; timeIn?: string; timeOut?: string; punches?: AttendancePunch[]; status: AttendanceStatus; remarks: string }) => Promise<void>;
   deleteAttendance: (id: string) => Promise<void>;
   addPayslip: (input: Omit<Payslip, 'id'>) => Promise<void>;
   deletePayslip: (id: string) => Promise<void>;
-  updateSettings: (settings: Settings) => Promise<void>;
+  addPayrollPeriod: (period: PayrollPeriod) => Promise<void>;
+  editPayrollPeriod: (previousId: string, period: PayrollPeriod) => Promise<void>;
+  deletePayrollPeriod: (id: string) => Promise<void>;
+  updateSettings: (settings: Settings, weeklySchedule?: WeeklyScheduleDay[], scheduleConfig?: ScheduleConfig) => Promise<void>;
 }
 
 const PayrollContext = createContext<PayrollContextValue | null>(null);
@@ -31,9 +34,20 @@ export const PayrollProvider: React.FC<React.PropsWithChildren> = ({ children })
   const value = useMemo<PayrollContextValue>(() => ({
     ...store,
     addAttendance: async (input) => {
-      const row = calculateAttendance(input, store.settings);
+      let matchingPeriod = store.payrollPeriods.find((period) => input.date >= period.startDate && input.date <= period.endDate);
+      let createdPeriod: PayrollPeriod | undefined;
+      if (!matchingPeriod) {
+        createdPeriod = defaultPayrollPeriod(input.date);
+        await insertPayrollPeriod(createdPeriod);
+        matchingPeriod = createdPeriod;
+      }
+      const row = calculateAttendance(input, store.settings, matchingPeriod.id, scheduleDayForConfig(input.date, store.scheduleConfig, store.weeklySchedule));
       await insertAttendance(row);
-      setStore((current) => ({ ...current, attendance: [row, ...current.attendance] }));
+      setStore((current) => ({
+        ...current,
+        payrollPeriods: createdPeriod ? [createdPeriod, ...current.payrollPeriods].sort((a, b) => b.startDate.localeCompare(a.startDate)) : current.payrollPeriods,
+        attendance: [row, ...current.attendance],
+      }));
     },
     deleteAttendance: async (id) => {
       await removeAttendance(id);
@@ -48,9 +62,32 @@ export const PayrollProvider: React.FC<React.PropsWithChildren> = ({ children })
       await removePayslip(id);
       setStore((current) => ({ ...current, payslips: current.payslips.filter((item) => item.id !== id) }));
     },
-    updateSettings: async (settings) => {
+    addPayrollPeriod: async (period) => {
+      await insertPayrollPeriod(period);
+      setStore((current) => ({ ...current, payrollPeriods: [period, ...current.payrollPeriods].sort((a, b) => b.startDate.localeCompare(a.startDate)) }));
+    },
+    editPayrollPeriod: async (previousId, period) => {
+      await updatePayrollPeriod(previousId, period);
+      setStore((current) => ({
+        ...current,
+        payrollPeriods: current.payrollPeriods.map((item) => item.id === previousId ? period : item).sort((a, b) => b.startDate.localeCompare(a.startDate)),
+        attendance: current.attendance.map((item) => item.payrollPeriod === previousId ? { ...item, payrollPeriod: period.id } : item),
+        payslips: current.payslips.map((item) => item.payrollPeriod === previousId ? { ...item, payrollPeriod: period.id } : item),
+      }));
+    },
+    deletePayrollPeriod: async (id) => {
+      await removePayrollPeriod(id);
+      setStore((current) => ({ ...current, payrollPeriods: current.payrollPeriods.filter((item) => item.id !== id) }));
+    },
+    updateSettings: async (settings, weeklySchedule = store.weeklySchedule, scheduleConfig = store.scheduleConfig) => {
+      const attendance = store.attendance.map((row) => ({
+        ...calculateAttendance({ date: row.date, punches: row.punches, status: row.status, remarks: row.remarks }, settings, row.payrollPeriod, scheduleDayForConfig(row.date, scheduleConfig, weeklySchedule)),
+        id: row.id,
+      }));
       await saveSettings(settings);
-      setStore((current) => ({ ...current, settings }));
+      await saveSchedule(scheduleConfig, weeklySchedule);
+      await updateAttendanceCalculations(attendance);
+      setStore((current) => ({ ...current, settings, scheduleConfig, weeklySchedule, attendance }));
     },
   }), [store]);
 

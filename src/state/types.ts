@@ -1,5 +1,7 @@
 export type AttendanceStatus = 'Present' | 'Late' | 'Absent' | 'Leave' | 'Holiday' | 'Rest Day' | 'Half Day';
-export interface Settings { monthlySalary: number; workHoursPerDay: number; workDaysPerMonth: number; standardTimeIn: string; standardTimeOut: string; breakStartTime: string; breakEndTime: string; lunchBreakHours: number; lateGraceMinutes: number; otMultiplier: number; differenceTolerance: number; }
+export type AppTheme = 'system' | 'light' | 'dark';
+export interface GlobalPreferences { theme: AppTheme; onboardingComplete: boolean; }
+export interface Settings { monthlySalary: number; workHoursPerDay: number; workDaysPerMonth: number; standardTimeIn: string; standardTimeOut: string; breakStartTime: string; breakEndTime: string; lunchBreakHours: number; lateGraceMinutes: number; lateDeductionRate: number; absenceDailyRate: number; otMultiplier: number; differenceTolerance: number; }
 export interface PayrollPeriod { id: string; startDate: string; endDate: string; label: string; }
 export type ScheduleIntervalType = 'work' | 'break';
 export interface ScheduleInterval { id: string; type: ScheduleIntervalType; startTime: string; endTime: string; }

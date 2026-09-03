@@ -23,6 +23,11 @@ const config: CapacitorConfig = {
         biometricTitle: "Unlock Butterbarya",
       },
     },
+    StatusBar: {
+      style: "DARK",
+      backgroundColor: "#ffffff",
+      overlaysWebView: false,
+    },
   },
 };
 

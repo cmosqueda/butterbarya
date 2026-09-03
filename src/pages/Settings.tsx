@@ -147,6 +147,8 @@ export default function Settings() {
           <label className="field"><span>Paid hours per day</span><input type="number" min="1" step="0.5" required value={form.workHoursPerDay} onChange={number('workHoursPerDay')} /><small>Hourly rate = daily rate ÷ paid hours per day.</small></label>
           <label className="field"><span>Overtime multiplier</span><input type="number" min="1" step="0.01" required value={form.otMultiplier} onChange={number('otMultiplier')} /><small>Multiplied by the hourly rate for overtime.</small></label>
           <label className="field"><span>Late grace period</span><div className="suffix-input"><input type="number" min="0" step="1" required value={form.lateGraceMinutes} onChange={number('lateGraceMinutes')} /><b>minutes</b></div><small>Applied to the first work interval of each day.</small></label>
+          <label className="field"><span>Late deduction rate</span><div className="money-input"><b>₱</b><input type="number" min="0" step="0.01" required value={form.lateDeductionRate} onChange={number('lateDeductionRate')} /></div><small>Every late minute is deducted at this amount. Example: 50 minutes × ₱2.40 = ₱120.00.</small></label>
+          <label className="field"><span>Absence daily rate</span><div className="money-input"><b>₱</b><input type="number" min="0" step="0.01" required value={form.absenceDailyRate} onChange={number('absenceDailyRate')} /></div><small>One full unpaid absence deducts this amount; a half day deducts half.</small></label>
           <label className="field"><span>Match tolerance</span><div className="money-input"><b>₱</b><input type="number" min="0" step="0.01" required value={form.differenceTolerance} onChange={number('differenceTolerance')} /></div><small>An audit threshold only; it never changes your pay.</small></label>
         </div>
       </section>
@@ -195,22 +197,6 @@ export default function Settings() {
 
       <div className="settings-save"><p>Saving recalculates existing time logs and payroll estimates using the active schedule cycle.</p><button className="primary-button" type="submit">Save settings & schedule</button></div>
     </form>
-
-    <section className="surface settings-section data-section">
-      <div className="section-title"><div><p className="section-kicker">Backup</p><h2>Export or restore your data</h2></div><span className="form-icon"><IonIcon icon={downloadOutline} /></span></div>
-      <p className="data-section-copy">Save a backup file of your settings, schedule, attendance, and payslips, or restore everything from a previous backup. Restoring replaces all current data.</p>
-      <div className="data-actions">
-        <button type="button" disabled={dataBusy} onClick={exportData}><IonIcon icon={downloadOutline} />Export data</button>
-        <button type="button" disabled={dataBusy} onClick={() => fileInputRef.current?.click()}><IonIcon icon={cloudUploadOutline} />Import data</button>
-        <input ref={fileInputRef} type="file" accept="application/json,.json" hidden onChange={importData} />
-      </div>
-    </section>
-
-    <section className="surface settings-section danger-section">
-      <div className="section-title"><div><p className="section-kicker">Danger zone</p><h2>Delete all payroll data</h2></div><span className="form-icon danger"><IonIcon icon={trashOutline} /></span></div>
-      <p className="data-section-copy">Permanently deletes every attendance record, payslip, payroll period, and schedule setting, then resets Butterbarya to its defaults. This cannot be undone.</p>
-      <button type="button" className="danger-button" disabled={dataBusy} onClick={() => setDeleteConfirmOpen(true)}><IonIcon icon={trashOutline} />Delete all payroll data</button>
-    </section>
 
     <IonModal isOpen={deleteConfirmOpen} onDidDismiss={() => setDeleteConfirmOpen(false)} className="break-info-modal">
       <div className="break-info-dialog" role="alertdialog" aria-labelledby="delete-all-title">

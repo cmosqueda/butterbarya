@@ -5,7 +5,7 @@ import App from './App';
 
 vi.mock('./state/database', () => ({
   loadPayrollStore: async () => ({
-    settings: { monthlySalary: 35000, workHoursPerDay: 8, workDaysPerMonth: 22, standardTimeIn: '08:00', standardTimeOut: '17:00', breakStartTime: '12:00', breakEndTime: '13:00', lunchBreakHours: 1, lateGraceMinutes: 5, otMultiplier: 1.25, differenceTolerance: 50 },
+    settings: { monthlySalary: 35000, workHoursPerDay: 8, workDaysPerMonth: 22, standardTimeIn: '08:00', standardTimeOut: '17:00', breakStartTime: '12:00', breakEndTime: '13:00', lunchBreakHours: 1, lateGraceMinutes: 5, lateDeductionRate: 2.4, absenceDailyRate: 35000 / 22, otMultiplier: 1.25, differenceTolerance: 50 },
     scheduleConfig: { mode: 'weekly', anchorDate: '2026-09-01', cycleLength: 7 },
     weeklySchedule: [
       { weekday: 0, isWorking: false, intervals: [] },
@@ -20,7 +20,7 @@ vi.mock('./state/database', () => ({
     attendance: [],
     payslips: [],
   }),
-  insertAttendance: vi.fn(), removeAttendance: vi.fn(), insertPayslip: vi.fn(), removePayslip: vi.fn(), insertPayrollPeriod: vi.fn(), updatePayrollPeriod: vi.fn(), removePayrollPeriod: vi.fn(), saveSettings: vi.fn(), saveSchedule: vi.fn(), updateAttendanceCalculations: vi.fn(),
+  insertAttendance: vi.fn(), removeAttendance: vi.fn(), insertPayslip: vi.fn(), removePayslip: vi.fn(), insertPayrollPeriod: vi.fn(), updatePayrollPeriod: vi.fn(), removePayrollPeriod: vi.fn(), saveSettings: vi.fn(), saveSchedule: vi.fn(), updateAttendanceCalculations: vi.fn(), loadGlobalPreferences: async () => ({ theme: 'system', onboardingComplete: true }),
 }));
 
 afterEach(() => {

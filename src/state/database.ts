@@ -2,7 +2,7 @@ import { Capacitor } from '@capacitor/core';
 import { CapacitorSQLite, SQLiteConnection, type SQLiteDBConnection, type capSQLiteSet } from '@capacitor-community/sqlite';
 import { defineCustomElements as defineJeepSqlite } from 'jeep-sqlite/loader';
 import { breakDurationHours, defaultScheduleConfig, defaultSettings, defaultWeeklySchedule } from './payroll';
-import type { AttendanceEntry, PayrollPeriod, PayrollStore, Payslip, ScheduleConfig, Settings, WeeklyScheduleDay } from './types';
+import type { AttendanceEntry, GlobalPreferences, PayrollPeriod, PayrollStore, Payslip, ScheduleConfig, Settings, WeeklyScheduleDay } from './types';
 
 const DATABASE_NAME = 'butterbarya';
 const DATABASE_VERSION = 1;
@@ -23,6 +23,8 @@ const schema = `
     break_end_time TEXT NOT NULL DEFAULT '13:00',
     lunch_break_hours REAL NOT NULL,
     late_grace_minutes INTEGER NOT NULL,
+    late_deduction_rate REAL NOT NULL DEFAULT 2.4,
+    absence_daily_rate REAL NOT NULL DEFAULT 0,
     ot_multiplier REAL NOT NULL,
     difference_tolerance REAL NOT NULL
   );
@@ -124,6 +126,11 @@ const schema = `
   );
   CREATE INDEX IF NOT EXISTS payslips_period_idx ON payslips(payroll_period);
   CREATE TABLE IF NOT EXISTS metadata (key TEXT PRIMARY KEY NOT NULL, value TEXT NOT NULL);
+  CREATE TABLE IF NOT EXISTS app_preferences (
+    id INTEGER PRIMARY KEY CHECK (id = 1),
+    theme TEXT NOT NULL DEFAULT 'system' CHECK (theme IN ('system', 'light', 'dark')),
+    onboarding_completed INTEGER NOT NULL DEFAULT 0 CHECK (onboarding_completed IN (0, 1))
+  );
 `;
 
 async function openDatabase() {
@@ -148,8 +155,10 @@ async function openDatabase() {
     : await sqlite.createConnection(DATABASE_NAME, isNative, encryptionMode, DATABASE_VERSION, false);
   if (!(await db.isDBOpen()).result) await db.open();
   await db.execute(schema);
-  await ensureSettingsBreakColumns(db);
+  await ensureSettingsColumns(db);
   await insertDefaultSettings(db);
+  await ensureAppPreferenceColumns(db);
+  await insertDefaultGlobalPreferences(db);
   await migrateLegacyLocalStorage(db);
   await seedWeeklySchedule(db);
   await seedScheduleCycle(db);
@@ -187,20 +196,25 @@ async function persistWebDatabase() {
 }
 
 function settingsValues(settings: Settings) {
-  return [1, settings.monthlySalary, settings.workHoursPerDay, settings.workDaysPerMonth, settings.standardTimeIn, settings.standardTimeOut, settings.breakStartTime, settings.breakEndTime, breakDurationHours(settings.breakStartTime, settings.breakEndTime), settings.lateGraceMinutes, settings.otMultiplier, settings.differenceTolerance];
+  return [1, settings.monthlySalary, settings.workHoursPerDay, settings.workDaysPerMonth, settings.standardTimeIn, settings.standardTimeOut, settings.breakStartTime, settings.breakEndTime, breakDurationHours(settings.breakStartTime, settings.breakEndTime), settings.lateGraceMinutes, settings.lateDeductionRate, settings.absenceDailyRate, settings.otMultiplier, settings.differenceTolerance];
 }
 
 const settingsSql = `INSERT OR REPLACE INTO settings
-  (id, monthly_salary, work_hours_per_day, work_days_per_month, standard_time_in, standard_time_out, break_start_time, break_end_time, lunch_break_hours, late_grace_minutes, ot_multiplier, difference_tolerance)
-  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);`;
+  (id, monthly_salary, work_hours_per_day, work_days_per_month, standard_time_in, standard_time_out, break_start_time, break_end_time, lunch_break_hours, late_grace_minutes, late_deduction_rate, absence_daily_rate, ot_multiplier, difference_tolerance)
+  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);`;
 
-async function ensureSettingsBreakColumns(db: SQLiteDBConnection) {
+async function ensureSettingsColumns(db: SQLiteDBConnection) {
   const columns = await db.query('PRAGMA table_info(settings);');
   const names = new Set((columns.values ?? []).map((column) => String(column.name)));
   const missingStart = !names.has('break_start_time');
   const missingEnd = !names.has('break_end_time');
   if (missingStart) await db.execute("ALTER TABLE settings ADD COLUMN break_start_time TEXT NOT NULL DEFAULT '12:00';");
   if (missingEnd) await db.execute("ALTER TABLE settings ADD COLUMN break_end_time TEXT NOT NULL DEFAULT '13:00';");
+  if (!names.has('late_deduction_rate')) await db.execute('ALTER TABLE settings ADD COLUMN late_deduction_rate REAL NOT NULL DEFAULT 2.4;');
+  if (!names.has('absence_daily_rate')) {
+    await db.execute('ALTER TABLE settings ADD COLUMN absence_daily_rate REAL NOT NULL DEFAULT 0;');
+    await db.execute('UPDATE settings SET absence_daily_rate = monthly_salary / work_days_per_month WHERE absence_daily_rate = 0 AND work_days_per_month > 0;');
+  }
   if (missingStart || missingEnd) {
     const existing = await db.query('SELECT lunch_break_hours FROM settings WHERE id = 1;');
     if (existing.values?.length) {
@@ -216,8 +230,37 @@ async function insertDefaultSettings(db: SQLiteDBConnection) {
   await db.run(settingsSql.replace('INSERT OR REPLACE', 'INSERT OR IGNORE'), settingsValues(defaultSettings));
 }
 
+const defaultGlobalPreferences: GlobalPreferences = { theme: 'system', onboardingComplete: false };
+async function ensureAppPreferenceColumns(db: SQLiteDBConnection) {
+  const columns = await db.query('PRAGMA table_info(app_preferences);');
+  const names = new Set((columns.values ?? []).map((column) => String(column.name)));
+  if (!names.has('onboarding_completed')) {
+    await db.execute('ALTER TABLE app_preferences ADD COLUMN onboarding_completed INTEGER NOT NULL DEFAULT 0;');
+    await db.execute('UPDATE app_preferences SET onboarding_completed = 1;');
+  }
+}
+async function insertDefaultGlobalPreferences(db: SQLiteDBConnection) {
+  await db.run("INSERT OR IGNORE INTO app_preferences (id, theme, onboarding_completed) VALUES (1, 'system', 0);");
+}
+
+export async function loadGlobalPreferences(): Promise<GlobalPreferences> {
+  const db = await getDatabase();
+  const result = await db.query('SELECT theme, onboarding_completed FROM app_preferences WHERE id = 1;');
+  const saved = result.values?.[0];
+  const theme = saved?.theme;
+  return theme === 'light' || theme === 'dark' || theme === 'system' ? { theme, onboardingComplete: Boolean(saved?.onboarding_completed) } : defaultGlobalPreferences;
+}
+
+export async function saveGlobalPreferences(preferences: GlobalPreferences) {
+  const db = await getDatabase();
+  await db.run('INSERT OR REPLACE INTO app_preferences (id, theme, onboarding_completed) VALUES (1, ?, ?);', [preferences.theme, preferences.onboardingComplete ? 1 : 0]);
+  await persistWebDatabase();
+}
+
 function settingsFromRow(saved: Record<string, unknown>): Settings {
-  return { monthlySalary: Number(saved.monthly_salary), workHoursPerDay: Number(saved.work_hours_per_day), workDaysPerMonth: Number(saved.work_days_per_month), standardTimeIn: String(saved.standard_time_in), standardTimeOut: String(saved.standard_time_out), breakStartTime: String(saved.break_start_time), breakEndTime: String(saved.break_end_time), lunchBreakHours: Number(saved.lunch_break_hours), lateGraceMinutes: Number(saved.late_grace_minutes), otMultiplier: Number(saved.ot_multiplier), differenceTolerance: Number(saved.difference_tolerance) };
+  const monthlySalary = Number(saved.monthly_salary);
+  const workDaysPerMonth = Number(saved.work_days_per_month);
+  return { monthlySalary, workHoursPerDay: Number(saved.work_hours_per_day), workDaysPerMonth, standardTimeIn: String(saved.standard_time_in), standardTimeOut: String(saved.standard_time_out), breakStartTime: String(saved.break_start_time), breakEndTime: String(saved.break_end_time), lunchBreakHours: Number(saved.lunch_break_hours), lateGraceMinutes: Number(saved.late_grace_minutes), lateDeductionRate: Number(saved.late_deduction_rate ?? defaultSettings.lateDeductionRate), absenceDailyRate: Number(saved.absence_daily_rate ?? monthlySalary / workDaysPerMonth), otMultiplier: Number(saved.ot_multiplier), differenceTolerance: Number(saved.difference_tolerance) };
 }
 
 async function seedWeeklySchedule(db: SQLiteDBConnection) {
@@ -429,12 +472,12 @@ export async function resetPayrollData(): Promise<PayrollStore> {
   return loadPayrollStore();
 }
 
-const BACKUP_VERSION = 1;
-interface BackupFile { app: 'butterbarya'; version: number; exportedAt: string; store: PayrollStore }
+const BACKUP_VERSION = 2;
+interface BackupFile { app: 'butterbarya'; version: number; exportedAt: string; store: PayrollStore; preferences?: GlobalPreferences }
 
 export async function exportBackupJson(): Promise<string> {
-  const store = await loadPayrollStore();
-  const backup: BackupFile = { app: 'butterbarya', version: BACKUP_VERSION, exportedAt: new Date().toISOString(), store };
+  const [store, preferences] = await Promise.all([loadPayrollStore(), loadGlobalPreferences()]);
+  const backup: BackupFile = { app: 'butterbarya', version: BACKUP_VERSION, exportedAt: new Date().toISOString(), store, preferences };
   return JSON.stringify(backup);
 }
 
@@ -446,7 +489,7 @@ export async function importBackupJson(jsonString: string): Promise<PayrollStore
 
   const db = await getDatabase();
   await wipeAllTables(db);
-  await db.run(settingsSql, settingsValues(store.settings));
+  await db.run(settingsSql, settingsValues({ ...defaultSettings, ...store.settings }));
   await writeSchedule(db, store.scheduleConfig, store.weeklySchedule);
   await db.executeSet([
     ...store.payrollPeriods.map((period) => ({ statement: 'INSERT INTO payroll_periods (id, start_date, end_date, label) VALUES (?, ?, ?, ?);', values: periodValues(period) })),
@@ -455,6 +498,7 @@ export async function importBackupJson(jsonString: string): Promise<PayrollStore
   ], true);
   await db.run('INSERT OR REPLACE INTO metadata (key, value) VALUES (?, ?);', ['payroll_periods_seeded', new Date().toISOString()]);
   await db.run('INSERT OR REPLACE INTO metadata (key, value) VALUES (?, ?);', ['local_storage_migrated', new Date().toISOString()]);
+  if (backup.preferences) await saveGlobalPreferences({ ...defaultGlobalPreferences, ...backup.preferences });
   await persistWebDatabase();
   return loadPayrollStore();
 }

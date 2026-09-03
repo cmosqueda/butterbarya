@@ -92,6 +92,14 @@ describe('payroll calculations', () => {
     expect(result.expectedGross).toBeLessThan(result.basePay);
   });
 
+  it('uses the configured flat late rate and absence daily rate', () => {
+    const late = calculateAttendance({ date: '2026-08-20', timeIn: '08:50', timeOut: '17:00', status: 'Present', remarks: '' }, { ...defaultSettings, lateGraceMinutes: 0 });
+    const absent = calculateAttendance({ date: '2026-08-21', timeIn: '', timeOut: '', status: 'Absent', remarks: '' }, defaultSettings);
+    const result = salaryBreakdown('2026-08-B', [late, absent], { ...defaultSettings, lateDeductionRate: 2.4, absenceDailyRate: 609.92 });
+    expect(result.lateDeduction).toBe(120);
+    expect(result.absenceDeduction).toBe(609.92);
+  });
+
   it('rejects duplicate and overlapping payroll periods', () => {
     const periods = [{ id: '2026-09-A', startDate: '2026-09-01', endDate: '2026-09-15', label: 'First cutoff' }];
     expect(validatePayrollPeriod({ ...periods[0] }, periods)).toContain('already exists');

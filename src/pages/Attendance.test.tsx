@@ -69,7 +69,7 @@ test('uses a selected empty calendar day for a new time log', async () => {
 
 test('adds multiple attendance punch pairs', async () => {
   const { getAllByLabelText, getByLabelText, getByRole } = render(<Attendance />);
-  fireEvent.change(getByLabelText('Date'), { target: { value: '2026-09-03' } });
+  fireEvent.change(getByLabelText('Date'), { target: { value: '2026-09-04' } });
   fireEvent.click(getByRole('button', { name: 'Add punch' }));
   const clockIns = getAllByLabelText('Clock in');
   const clockOuts = getAllByLabelText('Clock out');
